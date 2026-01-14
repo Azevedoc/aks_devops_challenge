@@ -146,12 +146,9 @@ jobs:
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
       - name: Install kubelogin
-        uses: azure/kubelogin@v1
-        with:
-          kubelogin-version: 'latest'
-
-      - name: Convert kubeconfig for Azure CLI auth
-        run: kubelogin convert-kubeconfig -l azurecli
+        run: |
+          az aks install-cli
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Substitute variables in manifests
         run: |
@@ -206,12 +203,9 @@ jobs:
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
       - name: Install kubelogin
-        uses: azure/kubelogin@v1
-        with:
-          kubelogin-version: 'latest'
-
-      - name: Convert kubeconfig for Azure CLI auth
-        run: kubelogin convert-kubeconfig -l azurecli
+        run: |
+          az aks install-cli
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Substitute variables in manifests
         run: |
