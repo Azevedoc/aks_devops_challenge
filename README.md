@@ -325,8 +325,6 @@ Recommended alerts:
 .
 ├── README.md                       # This file
 ├── DEPLOYMENT.md                   # Deployment instructions & free tier guide
-├── TROUBLESHOOTING_REPORT.md       # Infrastructure issues and resolutions
-├── CICD_TROUBLESHOOTING_REPORT.md  # CI/CD pipeline issues and resolutions
 ├── terraform/                      # Infrastructure as Code
 │   ├── main.tf
 │   ├── variables.tf

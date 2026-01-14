@@ -53,6 +53,9 @@ logs/
 .env
 .env.*
 
+# Internal documentation (not tracked)
+docs/internal/
+
 # Ignore secret files but allow Kubernetes SecretProviderClass manifests
 **/secrets/
 *credential*
