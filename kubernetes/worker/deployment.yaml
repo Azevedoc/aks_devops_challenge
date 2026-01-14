@@ -21,9 +21,7 @@ spec:
       labels:
         app.kubernetes.io/name: worker
         app.kubernetes.io/component: worker
-        azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: app-workload-identity
       containers:
         - name: worker
           image: "${ACR_LOGIN_SERVER}/worker:${IMAGE_TAG}"
@@ -31,16 +29,8 @@ spec:
             - configMapRef:
                 name: app-config
           env:
-            - name: APP_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: APP_SECRET
-            - name: STORAGE_CONNECTION_STRING
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: STORAGE_CONNECTION_STRING
+            - name: VERSION
+              value: "1.0.0"
           resources:
             requests:
               cpu: 50m
@@ -48,22 +38,11 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
-          volumeMounts:
-            - name: secrets-store
-              mountPath: /mnt/secrets-store
-              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
+            readOnlyRootFilesystem: false
             runAsNonRoot: true
             runAsUser: 1000
             capabilities:
               drop:
                 - ALL
-      volumes:
-        - name: secrets-store
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: azure-keyvault-secrets
