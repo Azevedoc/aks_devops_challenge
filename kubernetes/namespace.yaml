@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------------------------------------------------
+# NAMESPACE AND SERVICE ACCOUNT
+# Creates the application namespace and workload identity-enabled service account
+# ---------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/managed-by: kubectl
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-workload-identity
+  namespace: app
+  annotations:
+    # Workload Identity binding - replace with actual client ID from Terraform output
+    azure.workload.identity/client-id: "${WORKLOAD_IDENTITY_CLIENT_ID}"
+  labels:
+    azure.workload.identity/use: "true"

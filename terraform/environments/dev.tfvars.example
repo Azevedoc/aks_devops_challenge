@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------------------------------------------------
+# DEV ENVIRONMENT CONFIGURATION
+# ---------------------------------------------------------------------------------------------------------------------
+
+subscription_id = "YOUR_SUBSCRIPTION_ID"
+
+project     = "aksplatform"
+environment = "dev"
+location    = "westus2"  # Region with better VM availability for free subscriptions
+
+# Networking
+vnet_address_space            = "10.0.0.0/16"
+aks_subnet_cidr               = "10.0.1.0/24"
+private_endpoints_subnet_cidr = "10.0.2.0/24"
+
+# AKS - Cost-optimized for demo (free subscription compatible)
+kubernetes_version = "1.33"           # Default stable version (1.33.5)
+aks_node_size      = "Standard_B2s_v2"  # Burstable v2 (2 vCPU, 4 GB, ~$35/month)
+
+# Monitoring - Minimum allowed retention
+log_retention_days = 30

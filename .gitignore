@@ -1,0 +1,56 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+*.tfplan
+
+# Environment-specific files with secrets
+environments/*.tfvars
+!environments/*.tfvars.example
+
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform lockfile (optional - some teams commit this)
+# .terraform.lock.hcl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Azure CLI
+.azure/
+
+# Logs
+*.log
+logs/
+
+# Secrets (never commit)
+*.pem
+*.key
+*secret*
+*credential*
+.env
+.env.*

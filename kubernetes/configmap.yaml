@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------------------------------------------------------------
+# CONFIGMAP
+# Non-sensitive application configuration
+# ---------------------------------------------------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: app
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/managed-by: kubectl
+data:
+  LOG_LEVEL: "info"
+  ENVIRONMENT: "${ENVIRONMENT}"
+  STORAGE_CONTAINER_NAME: "results"
+  # Application-specific settings
+  WORKER_CONCURRENCY: "2"
+  API_PORT: "8080"
