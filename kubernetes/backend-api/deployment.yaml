@@ -20,7 +20,9 @@ spec:
       labels:
         app.kubernetes.io/name: backend-api
         app.kubernetes.io/component: api
+        azure.workload.identity/use: "true"
     spec:
+      serviceAccountName: app-workload-identity
       containers:
         - name: backend-api
           image: "${ACR_LOGIN_SERVER}/backend-api:${IMAGE_TAG}"
@@ -34,6 +36,20 @@ spec:
           env:
             - name: VERSION
               value: "1.0.0"
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: APP_SECRET
+            - name: STORAGE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: STORAGE_CONNECTION_STRING
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -72,3 +88,10 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: backend-api
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: azure-keyvault-secrets
