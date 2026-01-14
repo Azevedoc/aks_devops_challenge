@@ -323,24 +323,29 @@ Recommended alerts:
 
 ```
 .
-├── README.md                    # This file
-├── DEPLOYMENT.md                # Deployment instructions & free tier guide
-├── TROUBLESHOOTING_REPORT.md    # Issues encountered and resolutions
-├── terraform/                   # Infrastructure as Code
+├── README.md                       # This file
+├── DEPLOYMENT.md                   # Deployment instructions & free tier guide
+├── TROUBLESHOOTING_REPORT.md       # Infrastructure issues and resolutions
+├── CICD_TROUBLESHOOTING_REPORT.md  # CI/CD pipeline issues and resolutions
+├── terraform/                      # Infrastructure as Code
 │   ├── main.tf
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── providers.tf
 │   ├── environments/
-│   │   ├── dev.tfvars           # Dev environment config
-│   │   └── dev.tfvars.example   # Example configuration
+│   │   ├── dev.tfvars              # Dev environment config
+│   │   └── dev.tfvars.example      # Example configuration
 │   └── modules/
-│       ├── networking/          # VNet, subnets, NSG
-│       ├── aks/                 # AKS cluster (direct resource)
-│       ├── monitoring/          # Log Analytics
-│       ├── keyvault/            # Key Vault
-│       └── storage/             # Storage Account
-├── kubernetes/                  # Kubernetes manifests
+│       ├── networking/             # VNet, subnets, NSG
+│       ├── aks/                    # AKS cluster (direct resource)
+│       ├── acr/                    # Azure Container Registry
+│       ├── monitoring/             # Log Analytics
+│       ├── keyvault/               # Key Vault
+│       └── storage/                # Storage Account
+├── src/                            # Application source code
+│   ├── backend-api/                # Flask API (Dockerfile + main.py)
+│   └── worker/                     # Background worker (Dockerfile + main.py)
+├── kubernetes/                     # Kubernetes manifests
 │   ├── namespace.yaml
 │   ├── secret-provider-class.yaml
 │   ├── configmap.yaml
@@ -352,5 +357,5 @@ Recommended alerts:
 │       └── deployment.yaml
 └── .github/
     └── workflows/
-        └── ci-cd.yaml           # GitHub Actions workflow
+        └── ci-cd.yaml              # GitHub Actions workflow
 ```
