@@ -74,8 +74,9 @@ module "aks" {
   node_subnet_id      = module.networking.aks_subnet_id
   tenant_id           = data.azurerm_client_config.current.tenant_id
 
-  kubernetes_version = var.kubernetes_version
-  node_size          = var.aks_node_size
+  kubernetes_version         = var.kubernetes_version
+  node_size                  = var.aks_node_size
+  log_analytics_workspace_id = module.monitoring.workspace_id
 
   tags = local.common_tags
 }
@@ -127,6 +128,10 @@ module "acr" {
   location            = azurerm_resource_group.main.location
   registry_name       = "${var.project}${var.environment}acr" # No hyphens allowed, must be globally unique
   aks_principal_id    = module.aks.kubelet_identity_object_id
+
+  # Private endpoint disabled by default (requires Premium SKU: ~$1.50/day vs ~$0.17/day)
+  enable_private_endpoint    = var.acr_enable_private_endpoint
+  private_endpoint_subnet_id = module.networking.private_endpoints_subnet_id
 
   tags = local.common_tags
 }

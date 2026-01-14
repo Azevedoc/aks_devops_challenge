@@ -18,6 +18,18 @@ variable "aks_principal_id" {
   type        = string
 }
 
+variable "enable_private_endpoint" {
+  description = "Enable private endpoint for ACR (requires Premium SKU, ~$1.50/day vs ~$0.17/day for Basic)"
+  type        = bool
+  default     = false
+}
+
+variable "private_endpoint_subnet_id" {
+  description = "Subnet ID for the private endpoint (required if enable_private_endpoint is true)"
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

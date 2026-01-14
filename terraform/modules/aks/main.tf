@@ -28,10 +28,10 @@ resource "azurerm_kubernetes_cluster" "this" {
   }
 
   network_profile {
-    network_plugin    = "azure"
-    network_policy    = "calico"
-    service_cidr      = var.service_cidr
-    dns_service_ip    = var.dns_service_ip
+    network_plugin = "azure"
+    network_policy = "calico"
+    service_cidr   = var.service_cidr
+    dns_service_ip = var.dns_service_ip
   }
 
   # Enable OIDC issuer for workload identity
@@ -40,6 +40,17 @@ resource "azurerm_kubernetes_cluster" "this" {
   # Enable Key Vault secrets provider
   key_vault_secrets_provider {
     secret_rotation_enabled = true
+  }
+
+  # Enable workload identity
+  workload_identity_enabled = true
+
+  # Container Insights via OMS agent (optional)
+  dynamic "oms_agent" {
+    for_each = var.log_analytics_workspace_id != null ? [1] : []
+    content {
+      log_analytics_workspace_id = var.log_analytics_workspace_id
+    }
   }
 
   tags = var.tags

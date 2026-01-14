@@ -61,6 +61,12 @@ variable "dns_service_ip" {
   default     = "172.17.0.10"
 }
 
+variable "log_analytics_workspace_id" {
+  description = "Log Analytics workspace ID for Container Insights"
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
