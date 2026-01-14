@@ -116,6 +116,22 @@ module "storage" {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# CONTAINER REGISTRY
+# ACR for storing application images
+# ---------------------------------------------------------------------------------------------------------------------
+
+module "acr" {
+  source = "./modules/acr"
+
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  registry_name       = "${var.project}${var.environment}acr" # No hyphens allowed, must be globally unique
+  aks_principal_id    = module.aks.kubelet_identity_object_id
+
+  tags = local.common_tags
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # DATA SOURCES
 # ---------------------------------------------------------------------------------------------------------------------
 

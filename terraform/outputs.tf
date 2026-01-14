@@ -63,3 +63,20 @@ output "log_analytics_workspace_id" {
   description = "ID of the Log Analytics workspace"
   value       = module.monitoring.workspace_id
 }
+
+# Container Registry
+output "acr_login_server" {
+  description = "ACR login server URL"
+  value       = module.acr.login_server
+}
+
+output "acr_admin_username" {
+  description = "ACR admin username"
+  value       = module.acr.admin_username
+}
+
+output "acr_admin_password" {
+  description = "ACR admin password"
+  value       = module.acr.admin_password
+  sensitive   = true
+}
