@@ -202,7 +202,62 @@ az keyvault secret set \
   --value "$STORAGE_CONN"
 ```
 
-### 8. Deploy Kubernetes Manifests
+### 8. Configure Workload Identity
+
+Workload Identity allows pods to authenticate to Azure services (Key Vault, Storage) without storing credentials.
+
+```bash
+# Get OIDC issuer URL from AKS
+OIDC_ISSUER=$(az aks show \
+  --name aksplatform-dev-aks \
+  --resource-group aksplatform-dev-rg \
+  --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+echo "OIDC Issuer: $OIDC_ISSUER"
+
+# Create user-assigned managed identity
+az identity create \
+  --name "aksplatform-workload-identity" \
+  --resource-group "aksplatform-dev-rg" \
+  --location "westus2"
+
+# Get identity details
+WORKLOAD_IDENTITY_CLIENT_ID=$(az identity show \
+  --name "aksplatform-workload-identity" \
+  --resource-group "aksplatform-dev-rg" \
+  --query "clientId" -o tsv)
+
+WORKLOAD_IDENTITY_PRINCIPAL_ID=$(az identity show \
+  --name "aksplatform-workload-identity" \
+  --resource-group "aksplatform-dev-rg" \
+  --query "principalId" -o tsv)
+
+echo "Client ID: $WORKLOAD_IDENTITY_CLIENT_ID"
+echo "Principal ID: $WORKLOAD_IDENTITY_PRINCIPAL_ID"
+
+# Create federated credential linking K8s service account to Azure identity
+az identity federated-credential create \
+  --name "kubernetes-federated-credential" \
+  --identity-name "aksplatform-workload-identity" \
+  --resource-group "aksplatform-dev-rg" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:app:app-workload-identity" \
+  --audiences "api://AzureADTokenExchange"
+
+# Grant Key Vault Secrets User role
+az role assignment create \
+  --assignee "$WORKLOAD_IDENTITY_PRINCIPAL_ID" \
+  --role "Key Vault Secrets User" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/aksplatform-dev-rg/providers/Microsoft.KeyVault/vaults/aksplatformdevkv"
+
+# Grant Storage Blob Data Contributor role
+az role assignment create \
+  --assignee "$WORKLOAD_IDENTITY_PRINCIPAL_ID" \
+  --role "Storage Blob Data Contributor" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/aksplatform-dev-rg/providers/Microsoft.Storage/storageAccounts/aksplatformdevsa"
+```
+
+### 9. Deploy Kubernetes Manifests
 
 ```bash
 cd ../kubernetes
@@ -211,17 +266,146 @@ cd ../kubernetes
 INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
+# Set environment variables for manifest substitution
+export ACR_LOGIN_SERVER=$(terraform -chdir=../terraform output -raw acr_login_server)
+export IMAGE_TAG="latest"
+export INGRESS_HOST="api.${INGRESS_IP}.nip.io"
+export WORKLOAD_IDENTITY_CLIENT_ID="$WORKLOAD_IDENTITY_CLIENT_ID"
+export KEY_VAULT_NAME="aksplatformdevkv"
+export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+
+# Substitute variables in manifests
+for file in *.yaml **/*.yaml; do
+  if [ -f "$file" ]; then
+    envsubst < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+  fi
+done
+
 # Deploy namespace and config
 kubectl apply -f namespace.yaml
 kubectl apply -f configmap.yaml
+kubectl apply -f secret-provider-class.yaml
 
-# Deploy workloads (update image references first)
+# Deploy workloads
 kubectl apply -f backend-api/
 kubectl apply -f worker/
 
 # Verify deployment
 kubectl get all -n app
+
+# Verify secrets are mounted
+kubectl exec -n app deployment/backend-api -- ls -la /mnt/secrets-store/
 ```
+
+---
+
+## CI/CD Setup (GitHub Actions)
+
+To enable automated deployments via GitHub Actions, follow these steps.
+
+### 1. Create Service Principal
+
+```bash
+# Create service principal with Contributor role
+SP_OUTPUT=$(az ad sp create-for-rbac \
+  --name "github-actions-aks-deploy" \
+  --role contributor \
+  --scopes "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/aksplatform-dev-rg" \
+  --sdk-auth)
+
+echo "$SP_OUTPUT"
+
+# Extract values for GitHub secrets
+SP_CLIENT_ID=$(echo "$SP_OUTPUT" | jq -r '.clientId')
+SP_CLIENT_SECRET=$(echo "$SP_OUTPUT" | jq -r '.clientSecret')
+SP_TENANT_ID=$(echo "$SP_OUTPUT" | jq -r '.tenantId')
+```
+
+### 2. Grant AKS RBAC Permissions
+
+The service principal needs explicit AKS RBAC permissions (separate from Azure resource RBAC):
+
+```bash
+# Get service principal object ID
+SP_OBJECT_ID=$(az ad sp show --id "$SP_CLIENT_ID" --query id -o tsv)
+
+# Grant AKS RBAC Cluster Admin role
+az role assignment create \
+  --assignee "$SP_OBJECT_ID" \
+  --role "Azure Kubernetes Service RBAC Cluster Admin" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/aksplatform-dev-rg/providers/Microsoft.ContainerService/managedClusters/aksplatform-dev-aks"
+```
+
+### 3. Configure GitHub Secrets
+
+Using GitHub CLI or the web interface, set these secrets:
+
+```bash
+# Install GitHub CLI if needed: https://cli.github.com/
+
+# Login to GitHub
+gh auth login
+
+# Set secrets
+gh secret set AZURE_CREDENTIALS --body "$SP_OUTPUT"
+gh secret set AZURE_CLIENT_ID --body "$SP_CLIENT_ID"
+gh secret set AZURE_CLIENT_SECRET --body "$SP_CLIENT_SECRET"
+gh secret set AZURE_TENANT_ID --body "$SP_TENANT_ID"
+
+# Get ACR credentials
+ACR_USERNAME=$(terraform -chdir=terraform output -raw acr_admin_username)
+ACR_PASSWORD=$(terraform -chdir=terraform output -raw acr_admin_password)
+
+gh secret set ACR_USERNAME --body "$ACR_USERNAME"
+gh secret set ACR_PASSWORD --body "$ACR_PASSWORD"
+```
+
+### 4. Configure GitHub Variables
+
+```bash
+# Get values from Terraform outputs
+ACR_LOGIN_SERVER=$(terraform -chdir=terraform output -raw acr_login_server)
+AKS_CLUSTER_NAME=$(terraform -chdir=terraform output -raw aks_cluster_name)
+KEY_VAULT_NAME=$(terraform -chdir=terraform output -raw key_vault_name)
+INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Set variables
+gh variable set ACR_LOGIN_SERVER --body "$ACR_LOGIN_SERVER"
+gh variable set AKS_CLUSTER_NAME --body "$AKS_CLUSTER_NAME"
+gh variable set AKS_RESOURCE_GROUP --body "aksplatform-dev-rg"
+gh variable set INGRESS_HOST --body "api.${INGRESS_IP}.nip.io"
+gh variable set KEY_VAULT_NAME --body "$KEY_VAULT_NAME"
+gh variable set AZURE_TENANT_ID --body "$SP_TENANT_ID"
+gh variable set WORKLOAD_IDENTITY_CLIENT_ID --body "$WORKLOAD_IDENTITY_CLIENT_ID"
+```
+
+### 5. Trigger Deployment
+
+Push a commit to the `main` branch to trigger the CI/CD pipeline:
+
+```bash
+git push origin main
+
+# Watch the workflow
+gh run watch
+```
+
+---
+
+## Summary of Manual Steps
+
+| Step | Command/Action | Purpose |
+|------|----------------|---------|
+| NGINX Ingress | `kubectl apply -f ...` | Ingress controller for external access |
+| Key Vault Secrets | `az keyvault secret set` | Application secrets |
+| Workload Identity | `az identity create` | Pod-to-Azure authentication |
+| Federated Credential | `az identity federated-credential create` | Link K8s SA to Azure identity |
+| RBAC Roles | `az role assignment create` | Grant identity access to KV/Storage |
+| Service Principal | `az ad sp create-for-rbac` | CI/CD authentication |
+| AKS RBAC | `az role assignment create` | Grant SP kubectl access |
+| GitHub Secrets | `gh secret set` | CI/CD secrets |
+| GitHub Variables | `gh variable set` | CI/CD configuration |
 
 ---
 
@@ -272,6 +456,15 @@ curl http://api.${INGRESS_IP}.nip.io/
 ### Destroy All Resources
 
 ```bash
+# Delete workload identity (created via CLI, not Terraform)
+az identity delete \
+  --name "aksplatform-workload-identity" \
+  --resource-group "aksplatform-dev-rg"
+
+# Delete service principal (if created for CI/CD)
+SP_ID=$(az ad sp list --display-name "github-actions-aks-deploy" --query "[0].id" -o tsv)
+az ad sp delete --id "$SP_ID"
+
 cd terraform
 
 # Destroy infrastructure
