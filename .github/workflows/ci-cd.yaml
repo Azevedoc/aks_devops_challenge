@@ -145,6 +145,14 @@ jobs:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
+      - name: Install kubelogin
+        uses: azure/kubelogin@v1
+        with:
+          kubelogin-version: 'latest'
+
+      - name: Convert kubeconfig for Azure CLI auth
+        run: kubelogin convert-kubeconfig -l azurecli
+
       - name: Substitute variables in manifests
         run: |
           export IMAGE_TAG=${{ github.sha }}
@@ -196,6 +204,14 @@ jobs:
         with:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - name: Install kubelogin
+        uses: azure/kubelogin@v1
+        with:
+          kubelogin-version: 'latest'
+
+      - name: Convert kubeconfig for Azure CLI auth
+        run: kubelogin convert-kubeconfig -l azurecli
 
       - name: Substitute variables in manifests
         run: |
