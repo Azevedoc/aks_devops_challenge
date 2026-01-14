@@ -50,7 +50,10 @@ logs/
 # Secrets (never commit)
 *.pem
 *.key
-*secret*
-*credential*
 .env
 .env.*
+
+# Ignore secret files but allow Kubernetes SecretProviderClass manifests
+**/secrets/
+*credential*
+# Note: kubernetes/secret-provider-class.yaml is allowed (it's config, not actual secrets)
