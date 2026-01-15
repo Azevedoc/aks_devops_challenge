@@ -21,6 +21,7 @@ This repository implements the Azure Cloud/DevOps Engineer Technical Challenge: 
 ```
 aks_devops_challenge/
 ├── README.md                              # Architecture docs, diagram, key decisions
+├── DEPLOYMENT.md                          # Step-by-step deployment guide
 ├── challenge.md                           # Original challenge requirements
 ├── .github/workflows/ci-cd.yaml           # GitHub Actions pipeline
 ├── terraform/
@@ -34,17 +35,21 @@ aks_devops_challenge/
 │       ├── monitoring/                    # AVM log analytics wrapper
 │       ├── keyvault/                      # AVM key vault wrapper
 │       ├── storage/                       # AVM storage account wrapper
-│       └── aks/                           # AVM aks-production wrapper
-└── kubernetes/
-    ├── namespace.yaml                     # Namespace + ServiceAccount (workload identity)
-    ├── configmap.yaml                     # Non-sensitive config
-    ├── secret-provider-class.yaml         # Key Vault CSI driver config
-    ├── backend-api/
-    │   ├── deployment.yaml                # 2 replicas, probes, security context
-    │   ├── service.yaml                   # ClusterIP
-    │   └── ingress.yaml                   # NGINX ingress
-    └── worker/
-        └── deployment.yaml                # Background processor (writes to blob storage)
+│       ├── acr/                           # Container registry (direct resource)
+│       └── aks/                           # AKS cluster (direct resource)
+├── kubernetes/
+│   ├── namespace.yaml                     # Namespace + ServiceAccount (workload identity)
+│   ├── configmap.yaml                     # Non-sensitive config
+│   ├── secret-provider-class.yaml         # Key Vault CSI driver config
+│   ├── backend-api/
+│   │   ├── deployment.yaml                # 2 replicas, probes, security context
+│   │   ├── service.yaml                   # ClusterIP
+│   │   └── ingress.yaml                   # NGINX ingress
+│   └── worker/
+│       └── deployment.yaml                # Background processor (writes to blob storage)
+└── src/
+    ├── backend-api/                       # Flask API (Dockerfile + main.py)
+    └── worker/                            # Background worker (Dockerfile + main.py)
 ```
 
 ## Key Architecture Decisions
@@ -52,20 +57,23 @@ aks_devops_challenge/
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | Ingress | NGINX Ingress Controller | Portable, well-documented, no Azure lock-in |
-| Networking | Azure CNI | Pods get VNet IPs, required for network policies |
+| Networking | Azure CNI + Calico | Pods get VNet IPs, required for network policies |
 | Secrets | Key Vault + CSI Driver | Secrets never in cluster, centralized management |
 | Identity | Managed Identity + Workload Identity | No credential management |
 | IaC | Azure Verified Modules (AVM) | Microsoft-maintained, well-tested, thin wrappers |
 
-## Terraform Modules (AVM-based)
+## Terraform Modules
 
-All modules are thin wrappers around Azure Verified Modules:
+| Module | Type | Notes |
+|--------|------|-------|
+| networking | AVM wrapper | `Azure/avm-res-network-virtualnetwork/azurerm ~> 0.17` |
+| monitoring | AVM wrapper | `Azure/avm-res-operationalinsights-workspace/azurerm ~> 0.4` |
+| keyvault | AVM wrapper | `Azure/avm-res-keyvault-vault/azurerm ~> 0.10` |
+| storage | AVM wrapper | `Azure/avm-res-storage-storageaccount/azurerm ~> 0.6` |
+| acr | Direct resource | `azurerm_container_registry` (optional private endpoint) |
+| aks | Direct resource | `azurerm_kubernetes_cluster` (AVM pattern requires zones) |
 
-- **networking**: `Azure/avm-res-network-virtualnetwork/azurerm ~> 0.17` (latest: 0.17.0)
-- **monitoring**: `Azure/avm-res-operationalinsights-workspace/azurerm ~> 0.4` (latest: 0.4.2)
-- **keyvault**: `Azure/avm-res-keyvault-vault/azurerm ~> 0.10` (latest: 0.10.2)
-- **storage**: `Azure/avm-res-storage-storageaccount/azurerm ~> 0.6` (latest: 0.6.7)
-- **aks**: `Azure/avm-ptn-aks-production/azurerm ~> 0.5` (latest: 0.5.0)
+> **Note**: AKS and ACR use direct resources instead of AVM because the AVM production pattern enforces availability zones, which are not available on free Azure subscriptions.
 
 ## Common Commands
 
@@ -91,9 +99,9 @@ kubectl apply --dry-run=client -f kubernetes/ -R
 ## Environment Configuration
 
 The `environments/dev.tfvars` is configured for a cost-optimized demo:
-- VM size: `Standard_B2s` (burstable, ~$30/month)
-- Log retention: 7 days
-- Region: `westeurope`
+- VM size: `Standard_B2s_v2` (burstable, ~$35/month)
+- Log retention: 30 days (Azure minimum)
+- Region: `westus2` (best VM availability for free tier)
 
 ## CI/CD Pipeline
 
@@ -101,15 +109,31 @@ GitHub Actions workflow (`.github/workflows/ci-cd.yaml`):
 1. **build**: Build and test Docker images
 2. **push**: Push to Azure Container Registry
 3. **deploy-dev**: Deploy to dev on `develop` branch
-4. **deploy-prod**: Deploy to prod on `main` branch (requires approval)
+4. **deploy-prod**: Deploy to prod on `main` branch
 
-Required GitHub secrets/variables:
+Required GitHub secrets:
 - `AZURE_CREDENTIALS` - Service principal JSON
-- `ACR_LOGIN_SERVER`, `ACR_USERNAME`, `ACR_PASSWORD`
-- `AKS_CLUSTER_NAME`, `AKS_RESOURCE_GROUP`
+- `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` - For kubelogin
+- `ACR_USERNAME`, `ACR_PASSWORD` - ACR admin credentials
+
+Required GitHub variables:
+- `ACR_LOGIN_SERVER`, `AKS_CLUSTER_NAME`, `AKS_RESOURCE_GROUP`
 - `WORKLOAD_IDENTITY_CLIENT_ID`, `KEY_VAULT_NAME`, `AZURE_TENANT_ID`
+- `INGRESS_HOST`
+
+## Manual Configuration (Outside Terraform)
+
+The following resources are created via CLI (documented in DEPLOYMENT.md):
+- Workload identity (managed identity + federated credential)
+- RBAC role assignments for workload identity
+- Service principal for CI/CD
+- AKS RBAC role assignment for service principal
+- GitHub secrets and variables
+- NGINX Ingress Controller
+- Key Vault secrets
 
 ## Reference Documents
 
 - `challenge.md` - Original challenge requirements
-- `README.md` - Full architecture documentation with Mermaid diagram
+- `README.md` - Architecture documentation with decisions
+- `DEPLOYMENT.md` - Step-by-step deployment guide
